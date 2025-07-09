@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿package gee
+=======
+package gee
+>>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a
 
 import (
 	"net/http"
@@ -41,4 +45,8 @@ func (e *Engine) Run(addr string) (err error) {
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := newContext(w, r)
 	e.router.handle(c)
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a

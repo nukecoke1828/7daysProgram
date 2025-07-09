@@ -23,6 +23,7 @@ func main() {
 		})
 	})
 
+<<<<<<< HEAD
 	r.GET("/hello/:name", func(ctx *gee.Context) {
 		ctx.String(http.StatusOK, "Hello %s, you're at %s\n", ctx.Param("name"), ctx.Path)
 	})
@@ -33,3 +34,7 @@ func main() {
 
 	r.Run(":9999")
 }
+=======
+	r.Run(":9999")
+}
+>>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a

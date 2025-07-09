@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿package gee
+=======
+package gee
+>>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a
 
 import (
 	"encoding/json"
@@ -15,7 +19,10 @@ type Context struct {
 	//请求信息
 	Path   string
 	Method string
+<<<<<<< HEAD
 	Params map[string]string
+=======
+>>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a
 	//响应信息
 	StatusCode int
 }
@@ -70,9 +77,13 @@ func (c *Context) HTML(code int, html string) {
 	c.SetHeader("Content-Type", "text/html; charset=utf-8")
 	c.Status(code)
 	c.Writer.Write([]byte(html))
+<<<<<<< HEAD
 }
 
 func (c *Context) Param(key string) string {
 	value, _ := c.Params[key]
 	return value
 }
+=======
+}
+>>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a

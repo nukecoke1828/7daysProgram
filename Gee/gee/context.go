@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-﻿package gee
-=======
 package gee
->>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a
 
 import (
 	"encoding/json"
@@ -19,12 +15,12 @@ type Context struct {
 	//请求信息
 	Path   string
 	Method string
-<<<<<<< HEAD
 	Params map[string]string
-=======
->>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a
 	//响应信息
 	StatusCode int
+	//中间件
+	handlers []HandlerFunc
+	index    int
 }
 
 func newContext(w http.ResponseWriter, r *http.Request) *Context {
@@ -33,6 +29,7 @@ func newContext(w http.ResponseWriter, r *http.Request) *Context {
 		Request: r,
 		Path:    r.URL.Path,
 		Method:  r.Method,
+		index:   -1,
 	}
 }
 
@@ -77,13 +74,22 @@ func (c *Context) HTML(code int, html string) {
 	c.SetHeader("Content-Type", "text/html; charset=utf-8")
 	c.Status(code)
 	c.Writer.Write([]byte(html))
-<<<<<<< HEAD
 }
 
 func (c *Context) Param(key string) string {
 	value, _ := c.Params[key]
 	return value
 }
-=======
+
+func (c *Context) Next() {
+	c.index++
+	s := len(c.handlers)
+	for ; c.index < s; c.index++ {
+		c.handlers[c.index](c)
+	}
 }
->>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a
+
+func (c *Context) Fail(code int, err string) {
+	c.index = len(c.handlers)
+	c.JSON(code, H{"message": err})
+}

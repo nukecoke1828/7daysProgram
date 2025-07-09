@@ -1,40 +1,25 @@
-<<<<<<< HEAD
 ﻿package gee
-=======
-package gee
->>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a
 
 import (
 	"log"
 	"net/http"
-<<<<<<< HEAD
 	"strings"
 )
 
 type router struct {
 	handlers map[string]HandlerFunc //key:GET-/p/:lang/doc,POST-/p/book
 	roots    map[string]*node       //key:GET,POST
-=======
-)
-
-type router struct {
-	handlers map[string]HandlerFunc
->>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a
 }
 
 func newRouter() *router {
 	return &router{
 		handlers: make(map[string]HandlerFunc),
-<<<<<<< HEAD
 		roots:    make(map[string]*node),
-=======
->>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a
 	}
 }
 
 func (r *router) addRoute(method, pattern string, handler HandlerFunc) {
 	log.Printf("Router %4s - %s", method, pattern)
-<<<<<<< HEAD
 	parts := parsePattern(pattern)
 	key := method + "-" + pattern
 	_, ok := r.roots[method]
@@ -42,22 +27,21 @@ func (r *router) addRoute(method, pattern string, handler HandlerFunc) {
 		r.roots[method] = &node{}
 	}
 	r.roots[method].insert(pattern, parts, 0)
-=======
-	key := method + "-" + pattern
->>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a
 	r.handlers[key] = handler
 }
 
 func (r *router) handle(c *Context) {
-<<<<<<< HEAD
-	n, params := r.getRoute(c.Method, c.Path)
+	n, params := r.getRoute(c.Method, c.Path) //路由匹配
 	if n != nil {
 		c.Params = params
 		key := c.Method + "-" + n.pattern
-		r.handlers[key](c)
+		c.handlers = append(c.handlers, r.handlers[key]) //添加路由处理函数
 	} else {
-		c.String(http.StatusNotFound, "404 page not found: %s\n", c.Path)
+		c.handlers = append(c.handlers, func(c *Context) {
+			c.String(http.StatusNotFound, "404 page not found: %s\n", c.Path)
+		})
 	}
+	c.Next()
 }
 
 // 只允许一个*
@@ -98,12 +82,3 @@ func (r *router) getRoute(method, path string) (*node, map[string]string) {
 	}
 	return nil, nil
 }
-=======
-	key := c.Method + "-" + c.Path
-	if handler, ok := r.handlers[key]; ok {
-		handler(c)
-	} else {
-		c.String(http.StatusNotFound, "404 page not found: %s\n", c.Path)
-	}
-}
->>>>>>> 84ce0810c2b4c7e4e4e951d5a8a523e755a0357a

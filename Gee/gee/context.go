@@ -94,6 +94,6 @@ func (c *Context) Next() {
 }
 
 func (c *Context) Fail(code int, err string) {
-	c.index = len(c.handlers)
+	c.index = len(c.handlers) // 跳过后续中间件
 	c.JSON(code, H{"message": err})
 }

@@ -18,7 +18,7 @@ type student struct {
 func onlyForV2() gee.HandlerFunc {
 	return func(ctx *gee.Context) {
 		t := time.Now()
-		ctx.Fail(http.StatusInternalServerError, "Internal Server Error")
+		ctx.Fail(http.StatusInternalServerError, "Internal Server Error") //会跳过后面的中间件
 		log.Printf("[%d] %s in %v for group v2", ctx.StatusCode, ctx.Request.RequestURI, time.Since(t))
 	}
 }
@@ -26,6 +26,22 @@ func onlyForV2() gee.HandlerFunc {
 func FormatAsDate(t time.Time) string {
 	year, month, day := t.Date()
 	return fmt.Sprintf("%d-%02d-%02d", year, month, day)
+}
+
+func Test() {
+	fmt.Println("test")
+}
+
+func Test2(ctx *gee.Context) {
+	fmt.Println("test2")
+}
+
+func Test3(ctx *gee.Context) {
+	fmt.Println("test3")
+}
+
+func TTest(ctx *gee.Context) {
+	Test()
 }
 
 func main() {
@@ -78,14 +94,14 @@ func main() {
 
 	v1 := r.Group("/v1")
 	{
-		v1.GET("/hello", func(ctx *gee.Context) {
+		v1.GET("/hello", TTest, func(ctx *gee.Context) {
 			ctx.String(http.StatusOK, "Hello %s, you're at %s\n", ctx.Query("name"), ctx.Path)
 		})
 	}
 	v2 := r.Group("/v2")
 	v2.Use(onlyForV2()) //局部中间件
 	{
-		v2.GET("/hello/:name", func(ctx *gee.Context) {
+		v2.GET("/hello/:name", Test2, func(ctx *gee.Context) {
 			ctx.String(http.StatusOK, "Hello %s, you're at %s\n", ctx.Query("name"), ctx.Path)
 		})
 		v2.POST("/login", func(ctx *gee.Context) {
@@ -99,6 +115,10 @@ func main() {
 	r.GET("/panic", func(ctx *gee.Context) {
 		names := []string{"nukecoke"}
 		ctx.String(http.StatusOK, names[114514])
+	})
+
+	r.GET("/test", TTest, Test2, Test3, func(ctx *gee.Context) {
+		ctx.String(http.StatusOK, "Hello %s, you're at %s\n", ctx.Query("name"), ctx.Path)
 	})
 
 	r.Run(":9999")

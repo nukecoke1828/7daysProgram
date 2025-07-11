@@ -1,15 +1,22 @@
 ﻿package gee
 
 import (
+	"log"
 	"time"
-
-	"github.com/emicklei/go-restful/v3/log"
 )
 
 func Logger() HandlerFunc {
 	return func(ctx *Context) {
-		t := time.Now() //开始时间
-		ctx.Next()      //执行下一个中间件或路由
-		log.Printf("[%d] %s in %v", ctx.StatusCode, ctx.Request.RequestURI, time.Since(t))
+		start := time.Now()
+		path := ctx.Request.URL.Path
+		method := ctx.Request.Method
+
+		ctx.Next()
+
+		log.Printf("[%s] %s | Status: %d | Time: %v",
+			method,
+			path,
+			ctx.StatusCode,
+			time.Since(start))
 	}
 }

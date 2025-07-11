@@ -46,13 +46,17 @@ func (e *Engine) addRoute(method string, pattern string, handler HandlerFunc) {
 }
 
 // GET方法注册路由
-func (e *Engine) GET(pattern string, handler HandlerFunc) {
-	e.addRoute("GET", pattern, handler)
+func (e *Engine) GET(pattern string, handlers ...HandlerFunc) {
+	for _, handler := range handlers {
+		e.addRoute("GET", pattern, handler)
+	}
 }
 
 // POST方法注册路由
-func (e *Engine) POST(pattern string, handler HandlerFunc) {
-	e.addRoute("POST", pattern, handler)
+func (e *Engine) POST(pattern string, handlers ...HandlerFunc) {
+	for _, handler := range handlers {
+		e.addRoute("POST", pattern, handler)
+	}
 }
 
 // Run启动HTTP服务
@@ -70,7 +74,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := newContext(w, r)
 	c.handlers = middlewares // 将中间件链存入Context
 	c.engine = e
-	e.router.handle(c)
+	e.router.handle(c) // router.handle会调用c.Next()
 }
 
 func (g *RouterGroup) Group(prefix string) *RouterGroup {
@@ -90,12 +94,16 @@ func (g *RouterGroup) addRoute(method string, comp string, handler HandlerFunc) 
 	g.engine.router.addRoute(method, pattern, handler)
 }
 
-func (g *RouterGroup) GET(pattern string, handler HandlerFunc) {
-	g.addRoute("GET", pattern, handler)
+func (g *RouterGroup) GET(pattern string, handlers ...HandlerFunc) {
+	for _, handler := range handlers {
+		g.addRoute("GET", pattern, handler)
+	}
 }
 
-func (g *RouterGroup) POST(pattern string, handler HandlerFunc) {
-	g.addRoute("POST", pattern, handler)
+func (g *RouterGroup) POST(pattern string, handlers ...HandlerFunc) {
+	for _, handler := range handlers {
+		g.addRoute("POST", pattern, handler)
+	}
 }
 
 func (g *RouterGroup) Use(middlewares ...HandlerFunc) { // 注册中间件

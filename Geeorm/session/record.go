@@ -10,6 +10,7 @@ import (
 func (s *Session) Insert(values ...interface{}) (int64, error) {
 	recordValues := make([]interface{}, 0) // 记录SQL语句中需要的值
 	for _, value := range values {
+		s.CallMethod(BeforeInsert, value)
 		table := s.Model(value).RefTable() // 映射表结构
 		// 设置 INSERT INTO tableName (col1,col2,...)
 		s.clause.Set(clause.INSERT, table.Name, table.FieldNames)
@@ -22,12 +23,14 @@ func (s *Session) Insert(values ...interface{}) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	s.CallMethod(AfterInsert, nil)
 	return result.RowsAffected() // 返回受影响的行数
 }
 
 // 把整张表扫描进切片
 // 接收指向切片的指针
 func (s *Session) Find(values interface{}) error {
+	s.CallMethod(BeforeQuery, nil)
 	destSlice := reflect.Indirect(reflect.ValueOf(values))                // 得到切片的反射对象
 	destType := destSlice.Type().Elem()                                   // 得到切片元素的类型
 	table := s.Model(reflect.New(destType).Elem().Interface()).RefTable() // 映射表结构
@@ -48,6 +51,7 @@ func (s *Session) Find(values interface{}) error {
 		if err := rows.Scan(values...); err != nil {
 			return err
 		}
+		s.CallMethod(AfterQuery, dest.Addr().Interface())
 		destSlice.Set(reflect.Append(destSlice, dest)) // 追加到切片末尾
 	}
 	return rows.Close()
@@ -55,6 +59,7 @@ func (s *Session) Find(values interface{}) error {
 
 // 支持 map[string]interface{} 形式和kv list: "Name", "Tom", "Age", 18, .... 形式的更新
 func (s *Session) Update(kv ...interface{}) (int64, error) {
+	s.CallMethod(BeforeUpdate, nil)
 	m, ok := kv[0].(map[string]interface{}) // 类型断言
 	if !ok {                                // 不是 map[string]interface{} 形式
 		m = make(map[string]interface{})
@@ -70,17 +75,20 @@ func (s *Session) Update(kv ...interface{}) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	s.CallMethod(AfterUpdate, nil)
 	return result.RowsAffected() // 返回受影响的行数
 }
 
 // 根据条件删除数据
 func (s *Session) Delete() (int64, error) {
+	s.CallMethod(BeforeDelete, nil)
 	s.clause.Set(clause.DELETE, s.RefTable().Name)
 	sql, vars := s.clause.Build(clause.DELETE, clause.WHERE)
 	result, err := s.Raw(sql, vars...).Exec()
 	if err != nil {
 		return 0, err
 	}
+	s.CallMethod(AfterDelete, nil)
 	return result.RowsAffected() // 返回受影响的行数
 }
 
@@ -124,14 +132,15 @@ func (s *Session) OrderBy(desc string) *Session {
 }
 
 func (s *Session) First(value interface{}) error {
-	dest := reflect.Indirect(reflect.ValueOf(value))
-	destSlice := reflect.New(reflect.SliceOf(dest.Type())).Elem()
+	dest := reflect.Indirect(reflect.ValueOf(value))              // 得到反射对象
+	destSlice := reflect.New(reflect.SliceOf(dest.Type())).Elem() // 创建一个临时的反射对象类型的切片存储结果
+	// destSlice.Addr()得到切片的地址，在调用Find()追加数据
 	if err := s.Limit(1).Find(destSlice.Addr().Interface()); err != nil {
 		return err
 	}
 	if destSlice.Len() == 0 {
 		return errors.New("NOT FOUND")
 	}
-	dest.Set(destSlice.Index(0))
+	dest.Set(destSlice.Index(0)) // 将第一个元素赋值给 value
 	return nil
 }

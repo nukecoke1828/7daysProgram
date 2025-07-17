@@ -10,6 +10,9 @@ import (
 	"github.com/nukecoke1828/7daysProgram/Geeorm/schema"
 )
 
+var _ CommonDB = (*sql.DB)(nil) // 确保 CommonDB 接口实现
+var _ CommonDB = (*sql.Tx)(nil) // 确保 CommonDB 接口实现
+
 type Session struct { // 与数据库交互的会话
 	db       *sql.DB         // 数据库连接池
 	sql      strings.Builder // sql缓冲区
@@ -17,6 +20,14 @@ type Session struct { // 与数据库交互的会话
 	dialect  dialect.Dialect // 数据库方言
 	refTable *schema.Schema  // 引用的表结构
 	clause   clause.Clause   // SQL子句组合
+	tx       *sql.Tx         // 事务
+}
+
+// CommonDB 通用数据库接口，包含sql.DB和sql.Tx的接口方法
+type CommonDB interface {
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+	QueryRow(query string, args ...interface{}) *sql.Row
+	Exec(query string, args ...interface{}) (sql.Result, error)
 }
 
 // New 创建一个新的会话
@@ -33,8 +44,11 @@ func (s *Session) Clear() {
 	s.clause = clause.Clause{} // 清空SQL子句组合
 }
 
-// DB 返回数据库连接池
-func (s *Session) DB() *sql.DB {
+// DB 如果有事务，则返回事务对象，否则返回数据库连接池对象
+func (s *Session) DB() CommonDB {
+	if s.tx != nil {
+		return s.tx
+	}
 	return s.db
 }
 

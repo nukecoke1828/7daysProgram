@@ -3,13 +3,18 @@
 package geerpc
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/nukecoke1828/7daysProgram/geerpc/codec"
 )
@@ -19,6 +24,8 @@ var _ io.Closer = (*Client)(nil)
 
 // ErrShutdown 是当连接已关闭或正在关闭时返回的统一错误
 var ErrShutdown = errors.New("connection is shut down")
+
+type newClientFunc func(conn net.Conn, opt *Option) (client *Client, err error)
 
 // Call 代表一次 RPC 调用
 type Call struct {
@@ -41,6 +48,11 @@ type Client struct {
 	pending  map[uint64]*Call // 记录已发送未完成的请求
 	closing  bool             // 用户主动调用 Close 时为 true
 	shutdown bool             // 服务端/网络错误导致不可用时为 true
+}
+
+type clientResult struct {
+	client *Client
+	err    error
 }
 
 // done 把 call 发送到 Done 通道，通知调用方请求已完成
@@ -165,7 +177,7 @@ func parseOptions(opts ...*Option) (*Option, error) {
 	if len(opts) == 0 || opts[0] == nil {
 		return DefaultOption, nil
 	}
-	if len(opts) != 1 {
+	if len(opts) != 1 { // 最多只能有一个 Option
 		return nil, errors.New("number of options is more than 1")
 	}
 	opt := opts[0]
@@ -177,23 +189,23 @@ func parseOptions(opts ...*Option) (*Option, error) {
 }
 
 // Dial 便捷函数：拨号、握手并返回已就绪的客户端
-func Dial(network, address string, opts ...*Option) (client *Client, err error) {
-	opt, err := parseOptions(opts...)
-	if err != nil {
-		return nil, err
-	}
-	conn, err := net.Dial(network, address)
-	if err != nil {
-		return nil, err
-	}
-	// 发生错误时自动关闭连接
-	defer func() {
-		if err != nil {
-			_ = conn.Close()
-		}
-	}()
-	return NewClient(conn, opt)
-}
+// func Dial(network, address string, opts ...*Option) (client *Client, err error) {
+// 	opt, err := parseOptions(opts...)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	conn, err := net.Dial(network, address)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	// 发生错误时自动关闭连接
+// 	defer func() {
+// 		if err != nil {
+// 			_ = conn.Close()
+// 		}
+// 	}()
+// 	return NewClient(conn, opt)
+// }
 
 // send 将 Call 包装成请求并写入连接；出错时立即完成调用
 func (c *Client) send(call *Call) {
@@ -241,7 +253,93 @@ func (c *Client) Go(serviceMethod string, args, reply interface{}, done chan *Ca
 }
 
 // Call 同步调用：内部使用 Go 发起异步调用，并阻塞等待结果
-func (c *Client) Call(serviceMethod string, args, reply interface{}) error {
-	call := <-c.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
-	return call.Error
+// 由 context.Context 控制超时或取消
+func (c *Client) Call(ctx context.Context, serviceMethod string, args, reply interface{}) error {
+	// 创建带缓冲的通道，确保不会阻塞异步调用
+	done := make(chan *Call, 1)
+	call := c.Go(serviceMethod, args, reply, done)
+
+	select {
+	case <-ctx.Done(): // 超时或取消(channel被关闭)
+		c.removeCall(call.Seq)
+		return fmt.Errorf("rpc client: call timeout: %w", ctx.Err())
+	case call = <-done: // 调用完成
+		return call.Error
+	}
+}
+
+func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (client *Client, err error) {
+	opt, err := parseOptions(opts...)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := net.DialTimeout(network, address, opt.ConnectTimeout)
+	if err != nil { // 连接失败，直接返回错误
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = conn.Close() // 发生错误时关闭连接
+		}
+	}()
+	ch := make(chan clientResult)
+	go func() {
+		client, err := f(conn, opt) // 获取客户端实例
+		if err != nil {
+			log.Fatal("rpc client: dialTimeout:", err)
+		}
+		ch <- clientResult{client: client, err: err}
+	}()
+	if opt.ConnectTimeout == 0 { // 不设置超时，直接返回结果
+		result := <-ch
+		return result.client, result.err
+	}
+	select { // 超时控制
+	case <-time.After(opt.ConnectTimeout):
+		return nil, fmt.Errorf("rpc client: connect timeout:expect within %s", opt.ConnectTimeout)
+	case result := <-ch:
+		return result.client, result.err
+	}
+}
+
+func Dial(network, address string, opts ...*Option) (*Client, error) {
+	return dialTimeout(NewClient, network, address, opts...)
+}
+
+func NewHTTPClient(conn net.Conn, opt *Option) (*Client, error) {
+	req := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", defaultRPCPath, "geerpc")
+	_, err := io.WriteString(conn, req) // 将CONNECT请求发送给服务端
+	if err != nil {
+		log.Fatal("rpc client: io:", err)
+	}
+	// 按HTTP协议，读取服务端响应
+	resp, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: "CONNECT"})
+	if err != nil {
+		log.Fatal("rpc client: NewHTTPClient:", err)
+	}
+	if err == nil && resp.Status == connected { // 连接成功
+		return NewClient(conn, opt)
+	}
+	if err == nil {
+		err = errors.New("unexpected HTTP response: " + resp.Status)
+	}
+	return nil, err
+}
+
+func DialHTTP(network, address string, opts ...*Option) (*Client, error) {
+	return dialTimeout(NewHTTPClient, network, address, opts...)
+}
+
+func XDial(rpcAddr string, opts ...*Option) (*Client, error) {
+	parts := strings.Split(rpcAddr, "@")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("rpc client err: wrong format '%s', expect protocol@addr", rpcAddr)
+	}
+	protocol, addr := parts[0], parts[1]
+	switch protocol {
+	case "http":
+		return DialHTTP("tcp", addr, opts...)
+	default:
+		return Dial(protocol, addr, opts...)
+	}
 }

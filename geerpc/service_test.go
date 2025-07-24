@@ -76,7 +76,7 @@ func TestMethodType_Call(t *testing.T) {
 	// 2. 计算结果正确 (*replyv == 4)
 	// 3. 调用次数被正确累加 (NumCalls == 1)
 	_assert(err == nil &&
-		replyv.Interface().(int) == 4 &&
+		*replyv.Interface().(*int) == 4 &&
 		mType.NumCalls() == 1,
 		"failed to call Foo.Sum")
 }

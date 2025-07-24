@@ -50,6 +50,7 @@ func (c *GobCodec) Write(h *Header, body interface{}) (err error) {
 		_ = c.buf.Flush()
 		// 如果写入过程中发生错误，则关闭连接
 		if err != nil {
+			log.Fatal("rpc codec: gob error writing:", err)
 			_ = c.conn.Close()
 		}
 	}()

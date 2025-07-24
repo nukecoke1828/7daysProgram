@@ -32,10 +32,10 @@ func (m *methodType) NumCalls() uint64 {
 // 如果 ArgType 是指针类型，返回指向新实例的指针；否则返回值本身
 func (m *methodType) newArgv() reflect.Value {
 	var argv reflect.Value
-	if m.ArgType.Kind() == reflect.Ptr {
+	if m.ArgType.Kind() == reflect.Ptr { // 指针类型
 		// 参数本身是指针：new(T) 返回 *T
 		argv = reflect.New(m.ArgType.Elem())
-	} else {
+	} else { // 值类型
 		// 参数是值类型：new(T) 返回 *T，再取其元素拿到 T
 		argv = reflect.New(m.ArgType).Elem()
 	}
@@ -60,6 +60,7 @@ func (m *methodType) newReplyv() reflect.Value {
 }
 
 // newService 使用用户提供的接收者对象构造一个 *service
+// rcvr代表一个实现了 RPC 服务的对象，必须是指针类型，否则无法获取其方法
 func newService(rcvr interface{}) *service {
 	s := new(service)
 
@@ -96,6 +97,7 @@ func (s *service) registerMethods() {
 			continue
 		}
 		// 返回类型必须是 error
+		// reflect.TypeOf需要的是一个合法的值或表达式，所以需要用(*error)(nil)
 		if mtype.Out(0) != reflect.TypeOf((*error)(nil)).Elem() {
 			continue
 		}
@@ -130,7 +132,8 @@ func (s *service) call(m *methodType, argv, replyv reflect.Value) error {
 	// 取出方法对应的函数值
 	f := m.method.Func
 
-	// 调用方法：rcvr.Method(argv, replyv)
+	//在反射层面执行函数调用必须调用Call方法，参数和返回值 必须用[]reflect.Value包装/解包
+	// 调用方法：rcvr.Method(argv, replyv）
 	returnValues := f.Call([]reflect.Value{s.rcvr, argv, replyv})
 
 	// 方法返回值列表中第 0 个必须是 error
